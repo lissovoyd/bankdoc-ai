@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+bankdoc_env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Environment variables (CONTAINS PASSWORDS!)
+.env
+
+# Database (contains user data)
+*.db
+*.sqlite3
+
+# Embeddings & Models (TOO LARGE for GitHub)
+chroma_db/
+models_cache/
+
+# Uploaded files (user documents - privacy concern)
+uploads/
+*.pdf
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Redis
+dump.rdb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

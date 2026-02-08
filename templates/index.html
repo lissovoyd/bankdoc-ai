@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BankDoc AI - Document Intelligence</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- PDF.js for PDF rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Sidebar: Document Management -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>📄 BankDoc AI</h1>
+                <p class="subtitle">Document Intelligence System</p>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <button id="uploadBtn" class="btn btn-primary">
+                    <span>📤 Upload Document</span>
+                </button>
+                <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+                
+                <div id="uploadProgress" class="upload-progress" style="display: none;">
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
+                    </div>
+                    <span id="progressText">Uploading...</span>
+                </div>
+            </div>
+
+            <!-- Document List -->
+            <div class="document-list">
+                <h3>📁 Documents</h3>
+                <div id="docList" class="doc-items">
+                    <div class="loading">Loading documents...</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content: Split View -->
+        <main class="main-content three-col">
+        <!-- Middle: PDF Viewer -->
+        <section class="pdf-viewer" id="pdfViewer" style="display:none;">
+            <div class="pdf-header">
+            <h3 id="pdfTitle">Document Preview</h3>
+            <div class="pdf-controls">
+                <button id="prevPage" class="btn-icon">◀</button>
+                <span id="pageInfo">Page 1 of 1</span>
+                <button id="nextPage" class="btn-icon">▶</button>
+                <button id="closePdf" class="btn-icon">✕</button>
+            </div>
+            </div>
+
+            <div class="pdf-canvas-wrap" id="pdfWrap">
+                <div id="pdfPageContainer" class="pdf-page-container">
+                    <canvas id="pdfCanvas"></canvas>
+                    <!-- textLayer will be injected here by JS -->
+                    <div id="pdfHighlightLayer" class="pdf-highlight-layer"></div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right: Chat -->
+        <section class="chat-panel" id="chatPanel">
+            <div class="chat-header">
+            <h2 id="chatTitle">💬 Ask Questions</h2>
+            <span id="chatSubtitle" class="chat-subtitle">Select a document to start</span>
+            </div>
+
+            <div id="chatMessages" class="chat-messages">
+            <div class="welcome-message">
+                <h3>Welcome to BankDoc AI</h3>
+                <p>Select a document to begin asking questions.</p>
+            </div>
+            </div>
+
+            <div class="chat-input-container" id="chatInputContainer" style="display:none;">
+            <textarea id="questionInput" placeholder="Ask a question about the document..." rows="2"></textarea>
+            <button id="askBtn" class="btn btn-primary">Send</button>
+            </div>
+        </section>
+        </main>
+
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
