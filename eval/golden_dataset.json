@@ -1,0 +1,45 @@
+{
+  "_comment": "Golden evaluation dataset for BankDoc AI RAG system. Add 50-200 manually verified Q&A pairs.",
+  "_schema": {
+    "id": "int — unique identifier",
+    "document": "string — PDF filename",
+    "question": "string — question in Russian",
+    "expected_answer": "string — expected answer (key phrases)",
+    "expected_pages": "list[int] — pages where the answer is found",
+    "difficulty": "easy | medium | hard",
+    "category": "factual | reasoning | not_in_doc",
+    "notes": "string — optional notes"
+  },
+  "items": [
+    {
+      "id": 1,
+      "document": "example_contract.pdf",
+      "question": "Какой срок действия договора?",
+      "expected_answer": "Договор действует до 31 декабря 2025 года (раздел 10.1, стр. 8)",
+      "expected_pages": [8],
+      "difficulty": "easy",
+      "category": "factual",
+      "notes": "Replace with real data from your legal documents"
+    },
+    {
+      "id": 2,
+      "document": "example_contract.pdf",
+      "question": "Какова ответственность сторон в случае нарушения?",
+      "expected_answer": "",
+      "expected_pages": [],
+      "difficulty": "medium",
+      "category": "reasoning",
+      "notes": "Replace with real data"
+    },
+    {
+      "id": 3,
+      "document": "example_contract.pdf",
+      "question": "Какой курс доллара используется в расчётах?",
+      "expected_answer": "",
+      "expected_pages": [],
+      "difficulty": "hard",
+      "category": "not_in_doc",
+      "notes": "Question with no answer in document — system should decline"
+    }
+  ]
+}

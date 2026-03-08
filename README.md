@@ -13,12 +13,20 @@
 
 ## Quick Start
 
+### Prerequisites
+
+- Python 3.11+
+- Docker (PostgreSQL, Redis, ChromaDB run via docker-compose)
+- [Ollama](https://ollama.com/download)
 
 ### Setup
 ```bash
 # Clone & install
 git clone https://github.com/lissovoyd/bankdoc-ai.git
-
+cd bankdoc-ai
+python -m venv bankdoc_env
+bankdoc_env\Scripts\activate  # Windows
+pip install -r requirements.txt
 
 # Configure (create .env file)
 DATABASE_URL=postgresql://user:password@localhost/bankdoc
@@ -30,7 +38,7 @@ ollama pull llama3.2:3b
 
 ### Run
 ```bash
-# Terminal 1: API
+# Terminal 1: API (starts Docker services automatically)
 python main.py
 
 # Terminal 2: Worker
@@ -44,9 +52,9 @@ Open **http://localhost:8000**
 
 ## Tech Stack
 
-**Backend:** FastAPI, PostgreSQL, Redis, Celery, ChromaDB  
-**RAG:** sentence-transformers (embeddings), Ollama (LLM), BM25 (keyword search)  
-**Frontend:** Vanilla JS, PDF.js  
+**Backend:** FastAPI, PostgreSQL, Redis, Celery, ChromaDB
+**RAG:** sentence-transformers (embeddings), Ollama (LLM), BM25 (keyword search)
+**Frontend:** Vanilla JS, PDF.js
 
 ## Architecture
 ```
@@ -56,4 +64,10 @@ Question → Retrieve (ChromaDB + BM25) → Augment (context) → Generate (Olla
                 → 100% Local Processing
 ```
 
+## License
 
+MIT
+
+---
+
+⭐ **Star if useful!**

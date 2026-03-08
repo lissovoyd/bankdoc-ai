@@ -1,0 +1,58 @@
+=========================================================
+  BankDoc AI — How to Run
+=========================================================
+
+PREREQUISITES (one-time setup)
+--------------------------------
+1. Docker Desktop must be installed and running.
+2. Ollama must be installed and running with the model pulled:
+     ollama pull llama3.2:3b
+3. Python virtual env must be set up:
+     python -m venv bankdoc_env
+     bankdoc_env\Scripts\activate
+     pip install -r requirements.txt
+
+NOTE: Docker containers (PostgreSQL + Redis) start and stop
+automatically when you run/stop the FastAPI server. You do NOT
+need to manage them manually.
+
+=========================================================
+  RUNNING THE PROJECT (2 terminals)
+=========================================================
+
+--- Terminal 1: FastAPI server ---
+
+
+  This will automatically:
+    - Start PostgreSQL and Redis via Docker
+    - Create DB tables
+    - Load the embedding model
+    - Serve the app at http://localhost:8000
+
+  On Ctrl+C, Docker containers are stopped automatically.
+
+--- Terminal 2: Celery worker ---
+  cd d:\bankdoc-ai
+  bankdoc_env\Scripts\activate
+  celery -A celery_app worker --loglevel=info --pool=solo
+
+  Start this AFTER Terminal 1 is fully up (you'll see
+  "Application startup complete." in Terminal 1).
+  The worker handles PDF extraction and embedding in the background.
+
+=========================================================
+  STOPPING
+=========================================================
+1. Press Ctrl+C in Terminal 2 (Celery worker).
+2. Press Ctrl+C in Terminal 1 (FastAPI server).
+   Docker containers stop automatically.
+
+=========================================================
+  QUICK REFERENCE
+=========================================================
+  Web UI:        http://localhost:8000
+  API docs:      http://localhost:8000/docs
+  PostgreSQL:    localhost:5432  (user: bankdoc / pass: bankdoc123)
+  Redis:         localhost:6379
+  Ollama model:  llama3.2:3b (must be running separately)
+=========================================================

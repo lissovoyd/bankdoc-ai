@@ -71,8 +71,60 @@ async function initializeApp() {
   document.getElementById('nextPage').addEventListener('click', () => changePage(1));
   document.getElementById('closePdf').addEventListener('click', closePdfViewer);
 
-  // ✅ REMOVE auto-test behavior (it causes “blinking”)
-  // Do not call window.testUpload() automatically.
+  document.getElementById('sidebarToggle').addEventListener('click', () => {
+    document.querySelector('.container').classList.toggle('sidebar-collapsed');
+  });
+
+  // Drag-to-resize between PDF and Chat panels
+  const resizeHandle = document.getElementById('panelResizeHandle');
+  const mainContent = document.querySelector('.main-content.three-col');
+
+  resizeHandle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const cols = getComputedStyle(mainContent).gridTemplateColumns.split(' ');
+    const startPdfPx = parseFloat(cols[0]);
+    resizeHandle.classList.add('dragging');
+
+    function onMove(e) {
+      const delta = e.clientX - startX;
+      const totalWidth = mainContent.clientWidth;
+      const newPdf = Math.max(300, Math.min(totalWidth - 270, startPdfPx + delta));
+      const newChat = Math.max(220, totalWidth - newPdf - 13);
+      mainContent.style.gridTemplateColumns = `${newPdf}px 5px ${newChat}px`;
+    }
+    function onUp() {
+      resizeHandle.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// Delete document
+async function deleteDocument(docId, title) {
+    if (!confirm(`Delete "${title}"?\n\nThis will remove the PDF, all extracted text, and embeddings.`)) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/docs/${docId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        // If the deleted doc was active, clear the view
+        if (currentDoc && currentDoc.id === docId) {
+            currentDoc = null;
+            closePdfViewer();
+            document.getElementById('chatMessages').innerHTML = '<div class="welcome-message"><h3>Welcome to BankDoc AI</h3><p>Select a document to begin asking questions.</p></div>';
+            document.getElementById('chatInputContainer').style.display = 'none';
+            document.getElementById('chatSubtitle').textContent = 'Select a document to start';
+        }
+
+        loadDocuments();
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete document: ' + error.message);
+    }
 }
 
 // Load documents from API
@@ -91,7 +143,8 @@ async function loadDocuments() {
         
         docList.innerHTML = docs.map(doc => `
             <div class="doc-item" data-doc-id="${doc.id}" onclick="selectDocument(${doc.id})">
-                <div class="doc-item-title">${doc.title}</div>
+                <button class="doc-item-delete" onclick="event.stopPropagation(); deleteDocument(${doc.id}, '${escapeHtml(doc.title)}')" title="Delete document">&#x2715;</button>
+                <div class="doc-item-title">${escapeHtml(doc.title)}</div>
                 <div class="doc-item-meta">
                     <span>${new Date(doc.uploaded_at).toLocaleDateString()}</span>
                     <span class="status-badge status-${doc.status.toLowerCase()}">${doc.status}</span>
@@ -267,8 +320,8 @@ async function jumpToSource(src) {
 
   await openPdfAtPage(src.page_num);
 
-  // small wait so textLayer exists
-  await new Promise(r => setTimeout(r, 120));
+  // wait for text layer to finish rendering
+  await new Promise(r => setTimeout(r, 350));
 
   // highlight exact chunk using excerpt
   if (src.text_excerpt) {
@@ -305,8 +358,12 @@ async function askQuestion() {
         // Remove loading
         document.getElementById(loadingId)?.remove();
         
-        // Add answer
-        addMessage('assistant', result.answer, false, result.sources);
+        // Add answer with confidence info
+        addMessage('assistant', result.answer, false, result.sources, {
+            confidence: result.confidence,
+            grounded: result.grounded,
+            declined: result.declined,
+        });
         
     } catch (error) {
         console.error('Error asking question:', error);
@@ -316,20 +373,22 @@ async function askQuestion() {
 }
 
 // Add message to chat
-function addMessage(type, text, isLoading = false, sources = null) {
+function addMessage(type, text, isLoading = false, sources = null, meta = null) {
     const messages = document.getElementById('chatMessages');
     const id = `msg-${Date.now()}`;
-    
+
     let html = '';
-    
+
     if (type === 'user') {
         html = `<div class="message" id="${id}"><div class="message-question">${escapeHtml(text)}</div></div>`;
     } else if (type === 'assistant') {
+        const confidenceBadge = meta ? renderConfidenceBadge(meta) : '';
         html = `
             <div class="message" id="${id}">
-                <div class="message-answer">
+                <div class="message-answer ${meta && meta.declined ? 'answer-declined' : ''}">
+                    ${confidenceBadge}
                     <div class="answer-text">${escapeHtml(text)}</div>
-                    ${sources ? renderSources(sources) : ''}
+                    ${sources && sources.length ? renderSources(sources) : ''}
                 </div>
             </div>
         `;
@@ -343,18 +402,43 @@ function addMessage(type, text, isLoading = false, sources = null) {
     return id;
 }
 
-// Render sources
-// Render sources with click handler
+// Render confidence badge
+function renderConfidenceBadge(meta) {
+    if (!meta || typeof meta.confidence !== 'number') return '';
+    const score = meta.confidence;
+    let level, label;
+    if (meta.declined) {
+        level = 'red'; label = 'Нет данных';
+    } else if (score >= 70) {
+        level = 'green'; label = `Высокая ${score.toFixed(0)}%`;
+    } else if (score >= 45) {
+        level = 'yellow'; label = `Средняя ${score.toFixed(0)}%`;
+    } else {
+        level = 'red'; label = `Низкая ${score.toFixed(0)}%`;
+    }
+    return `<span class="confidence-badge confidence-${level}" title="Релевантность ответа: ${score.toFixed(1)}%">${label}</span>`;
+}
+
+// Render sources with click handler — full-width cards with excerpt
 function renderSources(sources) {
     return `
         <div class="answer-sources">
-            <h4>📎 Sources:</h4>
-            ${sources.map((src, idx) => {
+            <h4>Sources:</h4>
+            ${sources.slice(0, 5).map((src, idx) => {
                 const srcJson = escapeHtml(JSON.stringify(src));
+                const score = src.relevance_score || 0;
+                const scoreClass = score >= 70 ? 'source-score-high' : score >= 45 ? 'source-score-med' : 'source-score-low';
+                const sectionLabel = src.section_title ? `<span class="source-ref-section">${escapeHtml(src.section_title)}</span>` : '';
+                const excerpt = src.text_excerpt ? src.text_excerpt.replace(/\s+/g, ' ').trim().slice(0, 140) : '';
                 return `
-                    <span class="source-ref" onclick='jumpToSource(${srcJson})'>
-                        [${idx + 1}] Page ${src.page_num}
-                    </span>
+                    <div class="source-ref" onclick='jumpToSource(${srcJson})'>
+                        <div class="source-ref-header">
+                            <span class="source-ref-page">[${idx + 1}] Страница ${src.page_num}</span>
+                            <span class="source-ref-score ${scoreClass}">${score.toFixed(0)}%</span>
+                        </div>
+                        ${sectionLabel}
+                        ${excerpt ? `<div class="source-ref-excerpt">${escapeHtml(excerpt)}…</div>` : ''}
+                    </div>
                 `;
             }).join('')}
         </div>
@@ -403,10 +487,10 @@ async function renderPage(pageNum) {
   const canvas = document.getElementById('pdfCanvas');
   const ctx = canvas.getContext('2d');
 
-  // pick scale based on available width
-  const maxWidth = wrap.clientWidth - 28; // wrap padding-ish
+  // pick scale based on available width, zoom out slightly
+  const maxWidth = wrap.clientWidth - 28;
   const viewport1 = page.getViewport({ scale: 1 });
-  const scale = Math.max(1, maxWidth / viewport1.width);
+  const scale = Math.max(0.5, (maxWidth / viewport1.width) * 0.82);
   const viewport = page.getViewport({ scale });
 
   canvas.width = Math.floor(viewport.width);
@@ -419,32 +503,34 @@ async function renderPage(pageNum) {
   const oldTextLayer = pageContainer.querySelector('.textLayer');
   if (oldTextLayer) oldTextLayer.remove();
 
-  // clear old chunk highlights
+  // clear old chunk highlights and overlay
   clearChunkHighlights();
+  clearPageOverlay();
 
-  // create new text layer
+  // create new text layer — sized via CSS inset:0 (fills page container)
   const textLayerDiv = document.createElement('div');
   textLayerDiv.className = 'textLayer';
+  // pdfjs 3.11.174 requires --scale-factor for correct span positioning
+  textLayerDiv.style.setProperty('--scale-factor', viewport.scale);
   pageContainer.appendChild(textLayerDiv);
 
-  // render text layer (this enables copy/paste)
-  const textContent = await page.getTextContent();
-
+  // pdfjs 3.x text layer rendering (textContentSource = new API)
   const textDivs = [];
+  const textContent = await page.getTextContent();
   const renderTask = pdfjsLib.renderTextLayer({
     textContentSource: textContent,
     container: textLayerDiv,
     viewport,
-    textDivs
+    textDivs,
   });
-
-  // pdf.js 3.x returns an object with a promise
   if (renderTask?.promise) await renderTask.promise;
+
+  console.log('[PDF] textLayer spans created:', textDivs.length);
 
   document.getElementById('pageInfo').textContent =
     `Page ${pageNum} of ${pdfDoc.numPages}`;
 
-  // stash text info for chunk highlighting (used in #3)
+  // Store for chunk highlighting
   textLayerDiv._textItems = textContent.items;
   textLayerDiv._textDivs = textDivs;
 }
@@ -459,9 +545,7 @@ function changePage(delta) {
 
   currentPage = newPage;
 
-  const hl = document.getElementById("pdfHighlight");
-  if (hl) hl.style.display = "none";
-
+  clearPageOverlay();
   renderPage(currentPage);
 }
 
@@ -488,47 +572,20 @@ function escapeHtml(text) {
 }
 
 
-function highlightChunkOnPage(src) {
-  const hl = document.getElementById("pdfHighlight");
-  const canvas = document.getElementById("pdfCanvas");
-  if (!hl || !canvas) return;
+function showPageOverlay() {
+  // Fallback: show a full-page tint when text match fails
+  const hl = document.getElementById("pdfHighlightLayer");
+  if (!hl) return;
+  hl.style.background = "rgba(37, 99, 235, 0.07)";
+  hl.style.outline = "2px solid rgba(37, 99, 235, 0.3)";
+  hl.style.borderRadius = "10px";
+}
 
-  // if metadata missing, just do a quick flash at top
-  const start = (typeof src.start_sentence === "number") ? src.start_sentence : null;
-  const end = (typeof src.end_sentence === "number") ? src.end_sentence : null;
-
-  const canvasH = canvas.height;
-
-  // Default highlight size
-  let topPx = Math.floor(canvasH * 0.12);
-  let heightPx = Math.floor(canvasH * 0.18);
-
-  // If we have sentence range, map it to page height (approx)
-  // We assume ~50 sentences per page (rough), but we can scale by end_sentence.
-  if (start !== null && end !== null && end >= start) {
-    const approxTotal = Math.max(end + 10, 60); // avoid tiny totals
-    const startRatio = start / approxTotal;
-    const endRatio = end / approxTotal;
-
-    topPx = Math.floor(canvasH * startRatio);
-    heightPx = Math.max(40, Math.floor(canvasH * (endRatio - startRatio)));
-  }
-
-  // Clamp
-  topPx = Math.max(10, Math.min(topPx, canvasH - 60));
-  heightPx = Math.max(35, Math.min(heightPx, canvasH - topPx - 10));
-
-  hl.style.top = `${topPx}px`;
-  hl.style.height = `${heightPx}px`;
-  hl.style.display = "block";
-  hl.style.opacity = "1";
-
-  // fade out after a bit (optional)
-  clearTimeout(hl._hideTimer);
-  hl._hideTimer = setTimeout(() => {
-    hl.style.opacity = "0";
-    setTimeout(() => (hl.style.display = "none"), 200);
-  }, 2200);
+function clearPageOverlay() {
+  const hl = document.getElementById("pdfHighlightLayer");
+  if (!hl) return;
+  hl.style.background = "";
+  hl.style.outline = "";
 }
 
 function clearChunkHighlights() {
@@ -550,39 +607,54 @@ function normalizeForMatch(s) {
 function highlightChunkByExcerpt(excerpt) {
   const pageContainer = document.getElementById('pdfPageContainer');
   const textLayer = pageContainer.querySelector('.textLayer');
-  if (!textLayer || !textLayer._textItems || !textLayer._textDivs) return;
+  if (!textLayer || !textLayer._textItems || !textLayer._textDivs) {
+    showPageOverlay();
+    return;
+  }
 
   clearChunkHighlights();
+  clearPageOverlay();
 
-  const items = textLayer._textItems;   // pdf.js text items
-  const divs  = textLayer._textDivs;    // span divs for each item
+  const items = textLayer._textItems;
+  const divs  = textLayer._textDivs;
 
   // Build a full page string with mapping back to item indices
   let full = "";
-  const map = []; // map char index -> item index (by ranges)
+  const map = [];
   for (let i = 0; i < items.length; i++) {
     const t = items[i].str || "";
     const start = full.length;
     full += t + " ";
-    const end = full.length;
-    map.push({ i, start, end });
+    map.push({ i, start, end: full.length });
   }
 
   const hay = normalizeForMatch(full);
-  const needle = normalizeForMatch(excerpt).slice(0, 160); // match only first part
-  if (!needle || needle.length < 12) return;
+  const baseNeedle = normalizeForMatch(excerpt);
 
-  const pos = hay.indexOf(needle);
-  if (pos === -1) {
-    // fallback: try a shorter needle
-    const shortNeedle = needle.slice(0, 80);
-    if (shortNeedle.length < 12) return;
-    const pos2 = hay.indexOf(shortNeedle);
-    if (pos2 === -1) return;
-    return highlightRangeByCharPos(map, divs, pos2, pos2 + shortNeedle.length);
+  // Strategy: find the chunk's position using a short needle, then highlight
+  // the full excerpt length from that position (not just the needle).
+  const offsets = [0, 80, 150];
+  const lengths = [200, 120, 70, 40];
+
+  for (const off of offsets) {
+    if (off >= baseNeedle.length) continue;
+    const sub = baseNeedle.slice(off);
+    for (const len of lengths) {
+      const needle = sub.slice(0, len);
+      if (needle.length < 15) break;
+      const pos = hay.indexOf(needle);
+      if (pos !== -1) {
+        // Extend highlight to cover the full excerpt, anchored at the match
+        const hlStart = Math.max(0, pos - off);
+        const hlEnd = Math.min(hay.length, hlStart + baseNeedle.length);
+        highlightRangeByCharPos(map, divs, hlStart, hlEnd);
+        return;
+      }
+    }
   }
 
-  highlightRangeByCharPos(map, divs, pos, pos + needle.length);
+  // All needle lengths failed — show page overlay as fallback
+  showPageOverlay();
 }
 
 function highlightRangeByCharPos(map, divs, startChar, endChar) {
@@ -606,7 +678,5 @@ function highlightRangeByCharPos(map, divs, startChar, endChar) {
   // scroll to first highlighted span
   const first = divs[hits[0]];
   if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
-
-  // auto fade after a bit (optional)
-  setTimeout(() => clearChunkHighlights(), 2600);
+  // highlights persist until page changes
 }

@@ -1,0 +1,8 @@
+{
+  "_comment": "Baseline quality scores. CI fails if any metric drops more than 5% below these.",
+  "faithfulness": 0.0,
+  "context_relevance": 0.0,
+  "citation_accuracy": 0.0,
+  "decline_accuracy": 0.0,
+  "_note": "Scores will be populated after first evaluation run on a real golden dataset."
+}

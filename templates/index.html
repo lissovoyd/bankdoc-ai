@@ -16,8 +16,11 @@
         <!-- Left Sidebar: Document Management -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h1>📄 BankDoc AI</h1>
-                <p class="subtitle">Document Intelligence System</p>
+                <div class="sidebar-header-top">
+                    <h1>📄 BankDoc AI</h1>
+                    <button id="sidebarToggle" class="btn-icon" title="Collapse sidebar">‹</button>
+                </div>
+                <p class="subtitle sidebar-subtitle">Document Intelligence System</p>
             </div>
 
             <!-- Upload Section -->
@@ -67,6 +70,9 @@
             </div>
 
         </section>
+
+        <!-- Drag handle between PDF and Chat -->
+        <div class="panel-resize-handle" id="panelResizeHandle"></div>
 
         <!-- Right: Chat -->
         <section class="chat-panel" id="chatPanel">

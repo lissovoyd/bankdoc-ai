@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: bankdoc_postgres
+    environment:
+      POSTGRES_USER: bankdoc
+      POSTGRES_PASSWORD: bankdoc123
+      POSTGRES_DB: bankdoc
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bankdoc -d bankdoc"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    container_name: bankdoc_redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: bankdoc_chromadb
+    ports:
+      - "8100:8000"
+    volumes:
+      - chromadb_data:/chroma/chroma
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8000 && echo -e 'GET /api/v2/heartbeat HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 15s
+
+volumes:
+  pgdata:
+  chromadb_data:
